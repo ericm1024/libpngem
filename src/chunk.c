@@ -12,6 +12,7 @@ extern struct chunk_template palette_chunk_tmpl;
 extern struct chunk_template data_chunk_tmpl;
 extern struct chunk_template end_chunk_tmpl;
 extern struct chunk_template srgb_chunk_tmpl;
+extern struct chunk_template background_chunk_tmpl;
 extern struct chunk_template unknown_chunk_tmpl;
 
 static struct chunk_template* c_tmpl_mapping[] = {
@@ -20,6 +21,7 @@ static struct chunk_template* c_tmpl_mapping[] = {
         [CHUNK_IDAT] = &data_chunk_tmpl,
         [CHUNK_IEND] = &end_chunk_tmpl,
         [CHUNK_SRGB] = &srgb_chunk_tmpl,
+        [CHUNK_BKGD] = &background_chunk_tmpl,
         [CHUNK_UNKNOWN] = &unknown_chunk_tmpl
 };
 
@@ -36,6 +38,17 @@ static inline enum chunk_enum type_to_idx(int32_t type)
 
 #define BYTES_TO_TYPE(b0, b1, b2, b3)           \
         ((b0) << 24 | (b1) << 16 | (b2) << 8 | b3)
+
+struct chunk *lookup_chunk(struct png_image *img, enum chunk_enum type)
+{
+        struct chunk *chunk;
+
+        for (chunk = img->first; chunk; chunk = chunk->next)
+                if (chunk->c_tmpl->ct_type_idx == type)
+                        break;
+
+        return chunk;
+}
 
 /* allocate and initialize a chunk given its type, length, and parent image */
 static struct chunk *alloc_chunk(int32_t type, size_t length,
@@ -608,6 +621,193 @@ struct chunk_template srgb_chunk_tmpl = {
         }
 };
 
+
+/* definitions for background chunk 11.3.5.1 */
+
+struct background_chunk {
+        /* base chunk */
+        struct chunk chunk;
+        union {
+                uint16_t grey;
+                struct {
+                        uint16_t red;
+                        uint16_t green;
+                        uint16_t blue;
+                };
+                uint8_t palette_idx;
+        };
+};
+
+static inline struct background_chunk *
+background_chunk(const struct chunk *chunk)
+{
+        return container_of(chunk, struct background_chunk, chunk);
+}
+
+static ssize_t background_read(struct chunk *chunk, const char *buf, size_t size)
+{
+        struct background_chunk *bc;
+        struct header_chunk *hc;
+        struct palette_chunk *pc;
+        struct chunk *tmp;
+        struct png_image *img;
+        size_t count = 0;
+        char depth;
+        uint16_t color_max, grey, red, green, blue;
+        uint8_t palette_idx;
+
+        bc = background_chunk(chunk);
+        img = chunk->c_img;
+
+        /* chunk ordering rules (section 5.6) guarentee us a header */
+        tmp = lookup_chunk(img, CHUNK_IHDR);
+        if (!tmp)
+                return -P_ENOCHUNK;
+
+        hc = header_chunk(tmp);
+        depth = hc->depth;
+        color_max = (1 << depth) - 1;
+
+        /*
+         * depending on the color type of the image, the background chunk has
+         * a different structure.
+         *
+         *     - if the image is greyscale, it has a single 2-byte field for
+         *       the background color
+         *     - if the image is colored, then it has 3 2-bytes fields for
+         *       red green and blue
+         *     - otherwise (palette color), it has a 1-bytes field that is
+         *       a palette index
+         *
+         * we also have to carefully bounds check these values based on the
+         * bit depth of the image or the number of entries in the palette.
+         */
+        switch (hc->color) {
+        case COLOR_GREYSCALE:
+        case COLOR_GREY_ALPHA:
+                count = 2;
+                if (size < count)
+                        return -P_E2SMALL;
+
+                grey = read_png_uint16(buf);
+                if (grey > color_max)
+                        return -P_EINVAL;
+
+                bc->grey = grey;
+                break;
+
+        case COLOR_TRUE:
+        case COLOR_TRUE_ALPHA:
+                count = 6;
+                if (size < count)
+                        return -P_E2SMALL;
+
+                red = read_png_uint16(buf);
+                green = read_png_uint16(buf + 2);
+                blue = read_png_uint16(buf + 4);
+                if (red > color_max || green > color_max || blue > color_max)
+                        return -P_EINVAL;
+
+                bc->red = red;
+                bc->green = green;
+                bc->blue = blue;
+                break;
+
+        case COLOR_INDEXED:
+                count = 1;
+                if (size < count)
+                        return -P_E2SMALL;
+
+                /* ordering rules guarentee us a palette chunk by now */
+                tmp = lookup_chunk(img, CHUNK_PLTE);
+                if (!tmp)
+                        return -P_ENOCHUNK;
+                pc = palette_chunk(tmp);
+
+                palette_idx = *buf;
+                if (palette_idx >= pc->entries)
+                        return -P_EINVAL;
+
+                bc->palette_idx = palette_idx;
+                break;
+
+        default:
+                BUG()
+        }
+
+        return count;
+}
+
+static void background_print_info(FILE *stream, const struct chunk *chunk)
+{
+        struct png_image *img;
+        struct background_chunk *bc;
+        struct header_chunk *hc;
+        struct palette_chunk *pc;
+        struct chunk *tmp;
+        struct palette_entry *pentry;
+
+        bc = background_chunk(chunk);
+        img = chunk->c_img;
+
+        tmp = lookup_chunk(img, CHUNK_IHDR);
+        if (!tmp)
+                BUG();
+
+        hc = header_chunk(tmp);
+        switch (hc->color) {
+        case COLOR_GREYSCALE:
+        case COLOR_GREY_ALPHA:
+                fprintf(stream, "background color (grey): %d", bc->grey);
+                break;
+
+        case COLOR_TRUE:
+        case COLOR_TRUE_ALPHA:
+                fprintf(stream, "background color (rgb): %d %d %d",
+                        bc->red, bc->blue, bc->green);
+                break;
+
+        case COLOR_INDEXED:
+                tmp = lookup_chunk(img, CHUNK_PLTE);
+                if (!tmp)
+                        BUG();
+
+                pc = palette_chunk(tmp);
+                pentry = &pc->palette[bc->palette_idx];
+                fprintf(stream, "background color (palette, rgb): %d %d %d",
+                        pentry->red, pentry->green, pentry->blue);
+        }
+}
+
+static void background_free(struct chunk *chunk)
+{
+        free(background_chunk(chunk));
+}
+
+static struct chunk *background_alloc(struct png_image *img, size_t length)
+{
+        struct background_chunk *bc;
+        (void)img;
+        (void)length;
+
+        bc = malloc(sizeof *bc);
+        if (!bc)
+                return NULL;
+
+        return &bc->chunk;
+}
+
+struct chunk_template background_chunk_tmpl = {
+        .ct_type = BYTES_TO_TYPE(98, 75, 71, 68),
+        .ct_name = "background color",
+        .ct_type_idx = CHUNK_BKGD,
+        .ct_ops = {
+                .read = background_read,
+                .print_info = background_print_info,
+                .free = background_free,
+                .alloc = background_alloc
+        }
+};
 
 
 /* handle unknown chunks somewhat nicely this way */

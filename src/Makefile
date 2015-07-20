@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=-Wall -Wextra -pedantic -std=c99
+CFLAGS=-Wall -Wextra -pedantic -std=c11
 
 png: png.o chunk.o error.o
 	$(CC) $(CFLAGS) -o $@ $^

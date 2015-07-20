@@ -26,6 +26,7 @@ enum chunk_enum {
         CHUNK_IDAT,
         CHUNK_IEND,
         CHUNK_SRGB,
+        CHUNK_BKGD,
         CHUNK_UNKNOWN
 };
 
@@ -56,6 +57,8 @@ struct chunk_ops {
          */
         struct chunk *(*alloc)(struct png_image *img, size_t length);
 };
+
+struct chunk *chunk_lookup(struct png_image *img, enum chunk_enum type);
 
 /* generic data for every chunk in a png image */
 struct chunk_template {

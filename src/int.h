@@ -75,4 +75,9 @@ static inline bool read_png_uint(const char *buf, uint32_t *out)
         return PNG_UINT_MIN <= val && val <= PNG_UINT_MAX;
 }
 
+static uint16_t read_png_uint16(const char *buf)
+{
+        return buf[0] << 8 | buf[1];
+}
+
 #endif /* PNG_INT_H */
