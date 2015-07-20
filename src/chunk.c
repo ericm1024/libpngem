@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include "chunk.h"
+#include "error.h"
 #include "int.h"
 #include "util.h"
 
@@ -82,25 +83,26 @@ static uint32_t do_crc(const char *buf, size_t size)
 }
 
 /* read the next chunk out of a buffer. return nr of bytes read */
-size_t parse_next_chunk(const char *buf, size_t size, struct png_image *img)
+ssize_t parse_next_chunk(const char *buf, size_t size, struct png_image *img)
 {
         uint32_t length, crc;
         int32_t type;
-        size_t count, ret;
+        size_t count;
+        ssize_t ret;
         struct chunk *chunk;
 
         printf("entering parse chunk. buf is %p\n", buf);
         
         if (size < MIN_CHUNK_SIZE) {
                 printf("didn't have enough bytes left: %zu", size);
-                return 0;
+                return -P_E2SMALL;
         }
 
         /* first comes the length field */
         count = 0;
         if (!read_png_uint(buf, &length)) {
                 printf("failed to parse length: %"PRIu32"\n", length);
-                return 0;
+                return -P_ERANGE;
         }
         count += 4;
 
@@ -112,7 +114,7 @@ size_t parse_next_chunk(const char *buf, size_t size, struct png_image *img)
          * enough bytes left for this to make sense.
          */
         if (size - count < length + 8)
-                return 0;
+                return -P_E2SMALL;
 
         /* next comes the type field */
         type = __read_png_int_raw(buf + count);
@@ -126,15 +128,15 @@ size_t parse_next_chunk(const char *buf, size_t size, struct png_image *img)
         /* now we have enough information to read the chunk data */
         chunk = alloc_chunk(type, length, img);
         if (!chunk)
-                return 0;
+                return -P_ENOMEM;
 
         ret = length;
         if (chunk->c_tmpl->ct_ops.read) {
                 ret = chunk->c_tmpl->ct_ops.read(chunk, buf + count,
                                                  size - count);
-                if (!ret) {
+                if (ret < 0) {
                         printf("read failed\n");
-                        return 0;
+                        return ret;
                 }
         } else {
                 printf("skipped read for %s chunk with type %d %d %d %d\n",
@@ -213,29 +215,31 @@ static inline struct header_chunk *header_chunk(const struct chunk *chunk)
         return container_of(chunk, struct header_chunk, chunk);
 }
 
-static size_t header_read(struct chunk *chunk, const char *buf, size_t size)
+static ssize_t header_read(struct chunk *chunk, const char *buf, size_t size)
 {
         struct header_chunk *hc;
         uint32_t width, height;
         char depth, color, ztype, filter, interlace;
 
         if (size < HEADER_DISK_SIZE)
-                return 0;
+                return -P_E2SMALL;
+        if (chunk->length != HEADER_DISK_SIZE)
+                return -P_EINVAL;
 
         hc = header_chunk(chunk);
 
         if (!read_png_uint(buf, &width))
-                return 0;
+                return -P_ERANGE;
         buf += 4;
 
         if (!read_png_uint(buf, &height))
-                return 0;
+                return -P_ERANGE;
         buf += 4;
 
         depth = *buf++;
         /* power of 2 \in [1,16] */
         if (depth < 0 || depth > 16 || __builtin_popcount(depth) != 1)
-                return 0;
+                return -P_EINVAL;
 
         /*
          * validate that that the color is a valid value, and at the same
@@ -250,31 +254,31 @@ static size_t header_read(struct chunk *chunk, const char *buf, size_t size)
 
         case COLOR_INDEXED:
                 if (depth > 8)
-                        return 0;
+                        return -P_EINVAL;
                 break;
                 
         case COLOR_TRUE:
         case COLOR_GREY_ALPHA:
         case COLOR_TRUE_ALPHA:
                 if (depth < 8 || depth > 16)
-                        return 0;
+                        return -P_EINVAL;
                 break;
 
         default:
-                return 0;
+                return -P_EINVAL;
         }
 
         ztype = *buf++;
         if (ztype != ZTYPE_DEFLATE)
-                return 0;
+                return -P_EINVAL;
 
         filter = *buf++;
         if (filter != FILTER_ADAPTIVE)
-                return 0;
+                return -P_EINVAL;
 
         interlace = *buf++;
         if (interlace != INTERLACE_NONE && interlace != INTERLACE_ADAM7)
-                return 0;
+                return -P_EINVAL;
 
         hc->width = width;
         hc->height = height;
@@ -311,9 +315,7 @@ static struct chunk *header_alloc(struct png_image *img, size_t length)
 {
         struct header_chunk *hc;
         (void)img;
-
-        if (length != HEADER_DISK_SIZE)
-                return NULL;
+        (void)length;
 
         hc = malloc(sizeof *hc);
         if (!hc)
@@ -355,8 +357,8 @@ struct palette_chunk {
         /* number of entries in the palette */
         unsigned entries;
 
-        /* palette itself */
-        struct palette_entry palette[];
+        /* palette itself. we porentailly waste some memory here */
+        struct palette_entry palette[MAX_PALETTE_ENTRIES];
 };                 
 
 static inline struct palette_chunk *palette_chunk(const struct chunk *chunk)
@@ -364,17 +366,27 @@ static inline struct palette_chunk *palette_chunk(const struct chunk *chunk)
         return container_of(chunk, struct palette_chunk, chunk);
 }
 
-static size_t palette_read(struct chunk *chunk, const char *buf, size_t size)
+static ssize_t palette_read(struct chunk *chunk, const char *buf, size_t size)
 {
         struct palette_chunk *pc;
+        uint32_t length;
         unsigned i;
 
         pc = palette_chunk(chunk);
 
-        if (size > pc->entries * PALETE_ENTRY_SIZE) {
-                printf("palette read failed\n");
-                return 0;
-        }
+        length = pc->chunk.length;
+        if (length % PALETE_ENTRY_SIZE)
+                return -P_EINVAL;
+
+        if (length > MAX_PALETTE_ENTRIES * PALETE_ENTRY_SIZE)
+                return -P_EINVAL;
+
+        /* XXX: validate length against bit depth as per 11.2.3 para 5 */
+
+        pc->entries = length/PALETE_ENTRY_SIZE;
+
+        if (size > pc->entries * PALETE_ENTRY_SIZE)
+                return -P_E2SMALL;
 
         for (i = 0; i < pc->entries; i++) {
                 pc->palette[i].red = *buf++;
@@ -414,25 +426,11 @@ static struct chunk *palette_alloc(struct png_image *img, size_t length)
 
         printf("allocating palette\n");
 
-        if (length % PALETE_ENTRY_SIZE)
-                return NULL;
-
-        if (length > MAX_PALETTE_ENTRIES * PALETE_ENTRY_SIZE)
-                return NULL;
-
-        /* XXX: validate length against bit depth as per 11.2.3 para 5 */
-
-        /*
-         * we have to do a bit of a dance here because the size of a
-         * struct palette_entry may not be the size of an on disk palette
-         * entry due to padding
-         */
         entries = length/PALETE_ENTRY_SIZE;
-        pc = malloc(sizeof *pc + entries * sizeof pc->palette[0]);
+        pc = malloc(sizeof *pc);
         if (!pc)
                 return NULL;
 
-        pc->entries = length/PALETE_ENTRY_SIZE;
         printf("success\n");
         return &pc->chunk;
 }
@@ -468,7 +466,7 @@ static inline struct data_chunk *data_chunk(const struct chunk *chunk)
         return container_of(chunk, struct data_chunk, chunk);
 }
 
-static size_t data_read(struct chunk *chunk, const char *buf, size_t size)
+static ssize_t data_read(struct chunk *chunk, const char *buf, size_t size)
 {
         struct data_chunk *dc;
         (void)size;
@@ -550,7 +548,7 @@ static inline struct srgb_chunk *srgb_chunk(const struct chunk *chunk)
         return container_of(chunk, struct srgb_chunk, chunk);
 }
 
-static size_t srgb_read(struct chunk *chunk, const char *buf, size_t size)
+static ssize_t srgb_read(struct chunk *chunk, const char *buf, size_t size)
 {
         struct srgb_chunk *sc;
         char ri;
@@ -558,14 +556,14 @@ static size_t srgb_read(struct chunk *chunk, const char *buf, size_t size)
         sc = srgb_chunk(chunk);
 
         if (size < 1)
-                return 0;
+                return -P_E2SMALL;
 
         ri = buf[0];
         if (ri != SRGB_RI_PERCEPTUAL
             && ri != SRGB_RI_REL_COLORIMETRIC
             && ri != SRGB_RI_SATURATION
             && ri != SRGB_RI_ABS_COLORIMETRIC)
-                return 0;
+                return -P_EINVAL;
 
         sc->rendering_intent = ri;
         return 1;

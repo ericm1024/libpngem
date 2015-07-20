@@ -63,7 +63,7 @@ int main(int argc, char **argv)
         int fd;
         size_t size;
         size_t offset;
-        size_t nbytes;
+        ssize_t ret;
         struct chunk *chunk;
         struct png_image image;
 
@@ -86,12 +86,17 @@ int main(int argc, char **argv)
         if (!offset)
                 error("failed to parse magic");
 
-        printf("start of buff is at %p\n", (void*)fbuf);
+        printf("start of buff is at %p, end at %p\n", (void*)fbuf,
+               (void*)(fbuf + size));
 
-        do {
-                nbytes = parse_next_chunk(fbuf + offset, size - offset, &image);
-                offset += nbytes;
-        } while(nbytes);
+        for (;;) {
+                printf("offset is %zu\n", offset);
+                ret = parse_next_chunk(fbuf + offset, size - offset, &image);
+                if (ret < 0)
+                        break;
+
+                offset += ret;
+        }
 
         if (size != offset)
                 printf("ended parsing chunks without traversing whole file\n");
