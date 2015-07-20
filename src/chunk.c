@@ -10,6 +10,7 @@ extern struct chunk_template header_chunk_tmpl;
 extern struct chunk_template palette_chunk_tmpl;
 extern struct chunk_template data_chunk_tmpl;
 extern struct chunk_template end_chunk_tmpl;
+extern struct chunk_template srgb_chunk_tmpl;
 extern struct chunk_template unknown_chunk_tmpl;
 
 static struct chunk_template* c_tmpl_mapping[] = {
@@ -17,6 +18,7 @@ static struct chunk_template* c_tmpl_mapping[] = {
         [CHUNK_PLTE] = &palette_chunk_tmpl,
         [CHUNK_IDAT] = &data_chunk_tmpl,
         [CHUNK_IEND] = &end_chunk_tmpl,
+        [CHUNK_SRGB] = &srgb_chunk_tmpl,
         [CHUNK_UNKNOWN] = &unknown_chunk_tmpl
 };
 
@@ -532,6 +534,90 @@ struct chunk_template end_chunk_tmpl = {
         .ct_type_idx = CHUNK_IEND
         /* ops are all null, generic stuff is fine */
 };
+
+
+/* definitions for srgb chunk 11.3.3.5 */
+
+/* constants for rendering_intent field of struct srgb_chunk */
+#define SRGB_RI_PERCEPTUAL 0
+#define SRGB_RI_REL_COLORIMETRIC 1
+#define SRGB_RI_SATURATION 2
+#define SRGB_RI_ABS_COLORIMETRIC 3
+
+struct srgb_chunk  {
+        /* base chunk */
+        struct chunk chunk;
+
+        /* rndering intent */
+        char rendering_intent;
+};
+
+static inline struct srgb_chunk *srgb_chunk(const struct chunk *chunk)
+{
+        return container_of(chunk, struct srgb_chunk, chunk);
+}
+
+static size_t srgb_read(struct chunk *chunk, const char *buf, size_t size)
+{
+        struct srgb_chunk *sc;
+        char ri;
+
+        sc = srgb_chunk(chunk);
+
+        if (size < 1)
+                return 0;
+
+        ri = buf[0];
+        if (ri != SRGB_RI_PERCEPTUAL
+            && ri != SRGB_RI_REL_COLORIMETRIC
+            && ri != SRGB_RI_SATURATION
+            && ri != SRGB_RI_ABS_COLORIMETRIC)
+                return 0;
+
+        sc->rendering_intent = ri;
+        return 1;
+}
+
+static void srgb_print_info(FILE *stream, const struct chunk *chunk)
+{
+        struct srgb_chunk *sc;
+
+        sc = srgb_chunk(chunk);
+
+        fprintf(stream, "srgb rendering intent is %d\n", sc->rendering_intent);
+}
+
+static void srgb_free(struct chunk *chunk)
+{
+        free(srgb_chunk(chunk));
+}
+
+static bool srgb_alloc(struct png_image *img, size_t length, struct chunk **out)
+{
+        struct srgb_chunk *sc;
+        (void)img;
+        (void)length;
+
+        sc = malloc(sizeof *sc);
+        if (!sc)
+                return false;
+
+        *out = &sc->chunk;
+        return true;
+}
+
+struct chunk_template srgb_chunk_tmpl = {
+        .ct_type = BYTES_TO_TYPE(115, 82, 71, 66),
+        .ct_name = "srgb color space",
+        .ct_type_idx = CHUNK_SRGB,
+        .ct_ops = {
+                .read = srgb_read,
+                .print_info = srgb_print_info,
+                .free = srgb_free,
+                .alloc = srgb_alloc
+        }
+};
+
 
 
 /* handle unknown chunks somewhat nicely this way */

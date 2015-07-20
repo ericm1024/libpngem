@@ -24,6 +24,7 @@ enum chunk_enum {
         CHUNK_PLTE,
         CHUNK_IDAT,
         CHUNK_IEND,
+        CHUNK_SRGB,
         CHUNK_UNKNOWN
 };
 
