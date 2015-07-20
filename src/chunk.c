@@ -39,7 +39,7 @@ static struct chunk *alloc_chunk(int32_t type, size_t length,
                                  struct png_image *img)
 {
         enum chunk_enum type_idx;
-        struct chunk *chunk;
+        struct chunk *chunk, *tmp;
         struct chunk_template *tmpl;
 
         type_idx = type_to_idx(type);
@@ -56,6 +56,18 @@ static struct chunk *alloc_chunk(int32_t type, size_t length,
         chunk->c_tmpl = tmpl;
         chunk->c_img = img;
         chunk->length = length;
+        chunk->next = NULL;
+
+        /* put the chunk at the end of the image's singly linked list of chunks */
+        if (!img->first) {
+                img->first = chunk;
+        } else {
+                tmp = img->first;
+                while (tmp->next)
+                        tmp = tmp->next;
+                tmp->next = chunk;
+        }
+
         return chunk;
 }
 
@@ -69,8 +81,7 @@ static uint32_t do_crc(const char *buf, size_t size)
 }
 
 /* read the next chunk out of a buffer. return nr of bytes read */
-size_t parse_next_chunk(const char *buf, size_t size, struct png_image *img,
-                        struct chunk **out)
+size_t parse_next_chunk(const char *buf, size_t size, struct png_image *img)
 {
         uint32_t length, crc;
         int32_t type;
@@ -145,7 +156,6 @@ size_t parse_next_chunk(const char *buf, size_t size, struct png_image *img,
                 crc = 0; /* placeholder b/c no crc: return 0; */
         count += 4;
 
-        *out = chunk;
         return count;
 }
 

@@ -64,8 +64,10 @@ int main(int argc, char **argv)
         size_t size;
         size_t offset;
         size_t nbytes;
-        struct chunk *chunks[50];
-        int i, cidx;
+        struct chunk *chunk;
+        struct png_image image;
+
+        image.first = NULL;
 
         if (argc < 2)
                 error("must provide a filename");
@@ -85,27 +87,24 @@ int main(int argc, char **argv)
                 error("failed to parse magic");
 
         printf("start of buff is at %p\n", (void*)fbuf);
-        
-        cidx = 0;
+
         do {
-                nbytes = parse_next_chunk(fbuf + offset, size - offset,
-                                          NULL, &chunks[cidx++]);
+                nbytes = parse_next_chunk(fbuf + offset, size - offset, &image);
                 offset += nbytes;
         } while(nbytes);
 
-        if (size != offset) {
-                cidx--;
+        if (size != offset)
                 printf("ended parsing chunks without traversing whole file\n");
-        }
         
-
-        for (i = 0; i < cidx; i++) {
+        chunk = image.first;
+        while (chunk) {
                 fprintf(stderr, "printing info for %s chunk\n",
-                        chunks[i]->c_tmpl->ct_name);
-                if (chunks[i]->c_tmpl->ct_ops.print_info)
-                        chunks[i]->c_tmpl->ct_ops.print_info(stderr,
-                                                             chunks[i]);
+                        chunk->c_tmpl->ct_name);
                 
+                if (chunk->c_tmpl->ct_ops.print_info)
+                        chunk->c_tmpl->ct_ops.print_info(stderr,chunk);
+
+                chunk = chunk->next;
         }
 
         munmap((void*)fbuf, size);

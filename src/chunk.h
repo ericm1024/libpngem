@@ -79,10 +79,17 @@ struct chunk {
         struct chunk_template *c_tmpl;
         struct png_image *c_img;
         size_t length;
+
+        /* XXX: replace this with a real list */
+        struct chunk *next;
+};
+
+struct png_image {
+        /* XXX: replace this with a real list */
+        struct chunk *first;
 };
 
 /* read a chunk from a buffer and return a chunk of the correct type */
-size_t parse_next_chunk(const char *buf, size_t size, struct png_image *img,
-                        struct chunk **out);
+size_t parse_next_chunk(const char *buf, size_t size, struct png_image *img);
 
 #endif /* PNG_CHUNK_H */
