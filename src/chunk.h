@@ -53,8 +53,7 @@ struct chunk_ops {
          * return true on success, false otherwise. If null, a generic
          * chunk is allocated.
          */
-        bool (*alloc)(struct png_image *img, size_t length,
-                      struct chunk **out);
+        struct chunk *(*alloc)(struct png_image *img, size_t length);
 };
 
 /* generic data for every chunk in a png image */

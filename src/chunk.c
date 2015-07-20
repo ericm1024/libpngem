@@ -46,15 +46,14 @@ static struct chunk *alloc_chunk(int32_t type, size_t length,
 
         type_idx = type_to_idx(type);
         tmpl = c_tmpl_mapping[type_idx];
-        if (tmpl->ct_ops.alloc) {
-                if (!tmpl->ct_ops.alloc(img, length, &chunk))
-                        return NULL;
-        } else {
+        if (tmpl->ct_ops.alloc)
+                chunk = tmpl->ct_ops.alloc(img, length);
+        else
                 chunk = malloc(sizeof *chunk);
-                if (!chunk)
-                        return NULL;
-        }
-        
+
+        if (!chunk)
+                return NULL;
+
         chunk->c_tmpl = tmpl;
         chunk->c_img = img;
         chunk->length = length;
@@ -308,21 +307,19 @@ static void header_free(struct chunk *chunk)
         free(header_chunk(chunk));
 }
 
-static bool header_alloc(struct png_image *img, size_t length,
-                        struct chunk **out)
+static struct chunk *header_alloc(struct png_image *img, size_t length)
 {
         struct header_chunk *hc;
         (void)img;
 
         if (length != HEADER_DISK_SIZE)
-                return false;
+                return NULL;
 
         hc = malloc(sizeof *hc);
         if (!hc)
-                return false;
+                return NULL;
 
-        *out = &hc->chunk;
-        return true;
+        return &hc->chunk;
 }
 
 struct chunk_template header_chunk_tmpl = {
@@ -409,8 +406,7 @@ static void palette_free(struct chunk *chunk)
         free(palette_chunk(chunk));
 }
 
-static bool palette_alloc(struct png_image *img, size_t length,
-                         struct chunk **out)
+static struct chunk *palette_alloc(struct png_image *img, size_t length)
 {
         struct palette_chunk *pc;
         int entries;
@@ -419,10 +415,10 @@ static bool palette_alloc(struct png_image *img, size_t length,
         printf("allocating palette\n");
 
         if (length % PALETE_ENTRY_SIZE)
-                return false;
+                return NULL;
 
         if (length > MAX_PALETTE_ENTRIES * PALETE_ENTRY_SIZE)
-                return false;
+                return NULL;
 
         /* XXX: validate length against bit depth as per 11.2.3 para 5 */
 
@@ -434,12 +430,11 @@ static bool palette_alloc(struct png_image *img, size_t length,
         entries = length/PALETE_ENTRY_SIZE;
         pc = malloc(sizeof *pc + entries * sizeof pc->palette[0]);
         if (!pc)
-                return false;
+                return NULL;
 
         pc->entries = length/PALETE_ENTRY_SIZE;
-        *out = &pc->chunk;
-        printf("success\n");        
-        return true;
+        printf("success\n");
+        return &pc->chunk;
 }
 
 struct chunk_template palette_chunk_tmpl = {
@@ -498,8 +493,7 @@ static void data_free(struct chunk *chunk)
         free(data_chunk(chunk));
 }
 
-static bool data_alloc(struct png_image *img, size_t length,
-                      struct chunk **out)
+static struct chunk *data_alloc(struct png_image *img, size_t length)
 {
         struct data_chunk *dc;
         (void)img;
@@ -507,10 +501,9 @@ static bool data_alloc(struct png_image *img, size_t length,
 
         dc = malloc(sizeof *dc);
         if (!dc)
-                return false;
+                return NULL;
 
-        *out = &dc->chunk;
-        return true;
+        return &dc->chunk;
 }
 
 struct chunk_template data_chunk_tmpl = {
@@ -592,7 +585,7 @@ static void srgb_free(struct chunk *chunk)
         free(srgb_chunk(chunk));
 }
 
-static bool srgb_alloc(struct png_image *img, size_t length, struct chunk **out)
+static struct chunk *srgb_alloc(struct png_image *img, size_t length)
 {
         struct srgb_chunk *sc;
         (void)img;
@@ -600,10 +593,9 @@ static bool srgb_alloc(struct png_image *img, size_t length, struct chunk **out)
 
         sc = malloc(sizeof *sc);
         if (!sc)
-                return false;
+                return NULL;
 
-        *out = &sc->chunk;
-        return true;
+        return &sc->chunk;
 }
 
 struct chunk_template srgb_chunk_tmpl = {
