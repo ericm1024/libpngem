@@ -104,22 +104,14 @@ ssize_t parse_next_chunk(const char *buf, size_t size, struct png_image *img)
         ssize_t ret;
         struct chunk *chunk;
 
-        printf("entering parse chunk. buf is %p\n", buf);
-        
-        if (size < MIN_CHUNK_SIZE) {
-                printf("didn't have enough bytes left: %zu", size);
+        if (size < MIN_CHUNK_SIZE)
                 return -P_E2SMALL;
-        }
 
         /* first comes the length field */
         count = 0;
-        if (!read_png_uint(buf, &length)) {
-                printf("failed to parse length: %"PRIu32"\n", length);
+        if (!read_png_uint(buf, &length))
                 return -P_ERANGE;
-        }
         count += 4;
-
-        printf("read length %" PRIu32 "\n", length);
 
         /*
          * chunk length only counts the size of the data field, not the 4
@@ -134,10 +126,6 @@ ssize_t parse_next_chunk(const char *buf, size_t size, struct png_image *img)
         /* XXX: validate type here */
         count += 4;
 
-        printf("read type %"PRIu32" aka %d %d %d %d\n", type,
-               (type >> 24) & 0xff, (type >> 16) & 0xff,
-               (type >> 8) & 0xff, type & 0xff);
-
         /* now we have enough information to read the chunk data */
         chunk = alloc_chunk(type, length, img);
         if (!chunk)
@@ -147,10 +135,8 @@ ssize_t parse_next_chunk(const char *buf, size_t size, struct png_image *img)
         if (chunk->c_tmpl->ct_ops.read) {
                 ret = chunk->c_tmpl->ct_ops.read(chunk, buf + count,
                                                  size - count);
-                if (ret < 0) {
-                        printf("read failed\n");
+                if (ret < 0)
                         return ret;
-                }
         } else {
                 printf("skipped read for %s chunk with type %d %d %d %d\n",
                        chunk->c_tmpl->ct_name,
