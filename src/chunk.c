@@ -13,6 +13,7 @@ extern struct chunk_template data_chunk_tmpl;
 extern struct chunk_template end_chunk_tmpl;
 extern struct chunk_template srgb_chunk_tmpl;
 extern struct chunk_template background_chunk_tmpl;
+extern struct chunk_template dimension_chunk_tmpl;
 extern struct chunk_template unknown_chunk_tmpl;
 
 static struct chunk_template* c_tmpl_mapping[] = {
@@ -22,6 +23,7 @@ static struct chunk_template* c_tmpl_mapping[] = {
         [CHUNK_IEND] = &end_chunk_tmpl,
         [CHUNK_SRGB] = &srgb_chunk_tmpl,
         [CHUNK_BKGD] = &background_chunk_tmpl,
+        [CHUNK_PHYS] = &dimension_chunk_tmpl,
         [CHUNK_UNKNOWN] = &unknown_chunk_tmpl
 };
 
@@ -792,6 +794,108 @@ struct chunk_template background_chunk_tmpl = {
                 .print_info = background_print_info,
                 .free = background_free,
                 .alloc = background_alloc
+        }
+};
+
+
+/* definitions for pixel dimensions chunk 11.3.5.3 */
+
+struct dimension_chunk {
+        /* base chunk */
+        struct chunk chunk;
+
+        /* pixels per unit, X */
+        uint32_t ppu_x;
+
+        /* pixels per unit, Y */
+        uint32_t ppu_y;
+
+        /* unit of meausure */
+        uint8_t unit;
+};
+
+#define DIMEN_UNIT_UNKNOWN 0
+#define DIMEN_UNIT_METER 1
+
+#define DIMEN_DISK_SIZE 9
+
+static inline struct dimension_chunk *dimension_chunk(const struct chunk *chunk)
+{
+        return container_of(chunk, struct dimension_chunk, chunk);
+}
+
+static ssize_t dimension_read(struct chunk *chunk, const char *buf, size_t size)
+{
+        struct dimension_chunk *dc;
+        uint32_t ppu_x, ppu_y;
+        uint8_t unit;
+
+        dc = dimension_chunk(chunk);
+
+        if (size < DIMEN_DISK_SIZE)
+                return -P_E2SMALL;
+
+        /* first field is pixels per unit x */
+        if (!read_png_uint(buf, &ppu_x))
+                return -P_ERANGE;
+        buf += sizeof ppu_x;
+
+        /* next is pixels per unit y */
+        if (!read_png_uint(buf, &ppu_y))
+                return -P_ERANGE;
+        buf += sizeof ppu_y;
+
+        /* final field is the unit of measure */
+        unit = *buf;
+        if (unit != DIMEN_UNIT_UNKNOWN && unit != DIMEN_UNIT_METER)
+                return -P_EINVAL;
+
+        dc->ppu_x = ppu_x;
+        dc->ppu_y = ppu_y;
+        dc->unit = unit;
+        return DIMEN_DISK_SIZE;
+}
+
+static void dimension_print_info(FILE *stream, const struct chunk *chunk)
+{
+        struct dimension_chunk *dc;
+        const char *unit;
+
+        dc = dimension_chunk(chunk);
+
+        unit = dc->unit == DIMEN_UNIT_UNKNOWN ? "unit" : "meter";
+
+        fprintf(stream, "pixels per %s x: %u\n", unit, dc->ppu_x);
+        fprintf(stream, "pixels per %s y: %u\n", unit, dc->ppu_x);
+}
+
+static void dimension_free(struct chunk *chunk)
+{
+        free(dimension_chunk(chunk));
+}
+
+static struct chunk *dimension_alloc(struct png_image *img, size_t length)
+{
+        struct dimension_chunk *dc;
+        (void)img;
+        (void)length;
+
+        dc = malloc(sizeof *dc);
+        if (!dc)
+                return NULL;
+
+        return &dc->chunk;
+}
+
+struct chunk_template dimension_chunk_tmpl = {
+        .ct_type = BYTES_TO_TYPE(112, 72, 89, 115),
+        .ct_name = "physical dimensions",
+        .ct_type_idx = CHUNK_PHYS,
+        .ct_ops = {
+                .read = dimension_read,
+                .print_info = dimension_print_info,
+                .free = dimension_free,
+                .alloc = dimension_alloc
         }
 };
 
