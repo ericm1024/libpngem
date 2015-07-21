@@ -481,7 +481,7 @@ static void data_print_info(FILE *stream, const struct chunk *chunk)
         struct data_chunk *dc;
 
         dc = data_chunk(chunk);
-        fprintf(stream, "data chunk: %zu bytes long with base %p",
+        fprintf(stream, "data chunk: %zu bytes long with base %p\n",
                 dc->chunk.length, (void*)dc->buf);
 }
 
@@ -744,12 +744,12 @@ static void background_print_info(FILE *stream, const struct chunk *chunk)
         switch (hc->color) {
         case COLOR_GREYSCALE:
         case COLOR_GREY_ALPHA:
-                fprintf(stream, "background color (grey): %d", bc->grey);
+                fprintf(stream, "background color (grey): %d\n", bc->grey);
                 break;
 
         case COLOR_TRUE:
         case COLOR_TRUE_ALPHA:
-                fprintf(stream, "background color (rgb): %d %d %d",
+                fprintf(stream, "background color (rgb): %d %d %d\n",
                         bc->red, bc->blue, bc->green);
                 break;
 
@@ -760,7 +760,7 @@ static void background_print_info(FILE *stream, const struct chunk *chunk)
 
                 pc = palette_chunk(tmp);
                 pentry = &pc->palette[bc->palette_idx];
-                fprintf(stream, "background color (palette, rgb): %d %d %d",
+                fprintf(stream, "background color (palette, rgb): %d %d %d\n",
                         pentry->red, pentry->green, pentry->blue);
         }
 }
