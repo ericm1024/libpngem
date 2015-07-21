@@ -28,6 +28,7 @@ enum chunk_enum {
         CHUNK_SRGB,
         CHUNK_BKGD,
         CHUNK_PHYS,
+        CHUNK_TIME,
         CHUNK_UNKNOWN
 };
 

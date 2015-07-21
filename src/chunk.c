@@ -14,6 +14,7 @@ extern struct chunk_template end_chunk_tmpl;
 extern struct chunk_template srgb_chunk_tmpl;
 extern struct chunk_template background_chunk_tmpl;
 extern struct chunk_template dimension_chunk_tmpl;
+extern struct chunk_template time_chunk_tmpl;
 extern struct chunk_template unknown_chunk_tmpl;
 
 static struct chunk_template* c_tmpl_mapping[] = {
@@ -24,6 +25,7 @@ static struct chunk_template* c_tmpl_mapping[] = {
         [CHUNK_SRGB] = &srgb_chunk_tmpl,
         [CHUNK_BKGD] = &background_chunk_tmpl,
         [CHUNK_PHYS] = &dimension_chunk_tmpl,
+        [CHUNK_TIME] = &time_chunk_tmpl,
         [CHUNK_UNKNOWN] = &unknown_chunk_tmpl
 };
 
@@ -148,6 +150,9 @@ ssize_t parse_next_chunk(const char *buf, size_t size, struct png_image *img)
                        type & 0xff);
         }
         count += ret;
+
+        if ((unsigned long long)ret != chunk->length)
+                return -P_EINVAL; /* XXX: return a better error value */
 
         /*
          * finally read and validate the crc. the crc is for the type and
@@ -528,6 +533,15 @@ struct chunk_template end_chunk_tmpl = {
 };
 
 
+/* handle unknown chunks somewhat nicely this way */
+
+struct chunk_template unknown_chunk_tmpl = {
+        .ct_type = BYTES_TO_TYPE(0, 0, 0, 0),
+        .ct_name = "unknown",
+        .ct_type_idx = CHUNK_UNKNOWN
+};
+
+
 /* definitions for srgb chunk 11.3.3.5 */
 
 /* constants for rendering_intent field of struct srgb_chunk */
@@ -900,10 +914,181 @@ struct chunk_template dimension_chunk_tmpl = {
 };
 
 
-/* handle unknown chunks somewhat nicely this way */
+/* definitions for timestamp chunk 11.3.6.1 */
 
-struct chunk_template unknown_chunk_tmpl = {
-        .ct_type = BYTES_TO_TYPE(0, 0, 0, 0),
-        .ct_name = "unknown",
-        .ct_type_idx = CHUNK_UNKNOWN
+struct time_chunk {
+        /* base chunk */
+        struct chunk chunk;
+
+        /* full year, i.e. 1995. (what happens in year 65536??) */
+        uint16_t year;
+
+        /* month, 1-12 */
+        uint8_t month;
+
+        /* day of month, 1-31 */
+        uint8_t day;
+
+        /* hour, 1-23 */
+        uint8_t hour;
+
+        /* minute, 0-59 */
+        uint8_t minute;
+
+        /* second, 0-60 (for leap seconds) */
+        uint8_t second;
+};
+
+#define TIME_DISK_SIZE 7
+
+enum month {
+        JANUARY = 1,
+        FEBRUARY,
+        MARCH,
+        APRIL,
+        MAY,
+        JUNE,
+        JULY,
+        AUGUST,
+        SEPTEMBER,
+        OCTOBER,
+        NOVEMBER,
+        DECEMBER
+};
+
+/* months of the year are capitalized in English */
+static const char *month_names[] = {
+        [JANUARY]   = "January",
+        [FEBRUARY]  = "February",
+        [MARCH]     = "March",
+        [APRIL]     = "April",
+        [MAY]       = "May",
+        [JUNE]      = "June",
+        [JULY]      = "July",
+        [AUGUST]    = "August",
+        [SEPTEMBER] = "September",
+        [OCTOBER]   = "October",
+        [NOVEMBER]  = "November",
+        [DECEMBER]  = "December"
+};
+
+static inline struct time_chunk *time_chunk(const struct chunk *chunk)
+{
+        return container_of(chunk, struct time_chunk, chunk);
+}
+
+static ssize_t time_read(struct chunk *chunk, const char *buf, size_t size)
+{
+        struct time_chunk *tc;
+        uint16_t year;
+        uint8_t month, day, hour, minute, second;
+
+        tc = time_chunk(chunk);
+
+        if (size < TIME_DISK_SIZE)
+                return -P_E2SMALL;
+
+        /* first field is year. any values are valid (lol, sort of) */
+        year = read_png_uint16(buf);
+        buf += sizeof year;
+
+        /* next is month, 1 indexed */
+        month = *buf++;
+        if (month < 1 || month > 12)
+                return -P_EINVAL;
+
+        /* day, 1 indexed */
+        day = *buf++;
+        if (day < 1 || day > 31)
+                return -P_EINVAL;
+
+        /* hour, 0 indexed */
+        hour = *buf++;
+        if (hour > 23)
+                return -P_EINVAL;
+
+        /* minute, 0 indexed */
+        minute = *buf++;
+        if (minute > 59)
+                return -P_EINVAL;
+
+        /* seconds, 0 indexed, and leap seconds are okay */
+        second = *buf++;
+        if (second > 60)
+                return -P_EINVAL;
+
+        /* validate day against month */
+        switch (month) {
+        case APRIL:
+        case JUNE:
+        case SEPTEMBER:
+        case NOVEMBER:
+                if (day > 30)
+                        return -P_EINVAL;
+                break;
+
+        case FEBRUARY:
+                /* fuck you february */
+                if (year%4 == 0 && !(year%100 == 0 && year%400 != 0)) {
+                        if (day > 29)
+                                return -P_EINVAL;
+                } else {
+                        if (day > 28)
+                                return -P_EINVAL;
+                }
+                break;
+
+        default:
+                /* we already validated the general case */
+                break;
+        }
+
+        tc->year = year;
+        tc->month = month;
+        tc->day = day;
+        tc->hour = hour;
+        tc->second = second;
+
+        return TIME_DISK_SIZE;
+}
+
+static void time_print_info(FILE *stream, const struct chunk *chunk)
+{
+        struct time_chunk *tc;
+
+        tc = time_chunk(chunk);
+
+        fprintf(stream, "image timestamp is %s %d, %d %d:%d:%d\n",
+                month_names[tc->month], tc->day, tc->year, tc->hour,
+                tc->minute, tc->second);
+}
+
+static void time_free(struct chunk *chunk)
+{
+        free(time_chunk(chunk));
+}
+
+static struct chunk *time_alloc(struct png_image *img, size_t length)
+{
+        struct time_chunk *tc;
+        (void)img;
+        (void)length;
+
+        tc = malloc(sizeof *tc);
+        if (!tc)
+                return NULL;
+
+        return &tc->chunk;
+}
+
+struct chunk_template time_chunk_tmpl = {
+        .ct_type = BYTES_TO_TYPE(116, 73, 77, 69),
+        .ct_name = "timestamp",
+        .ct_type_idx = CHUNK_TIME,
+        .ct_ops = {
+                .read = time_read,
+                .print_info = time_print_info,
+                .free = time_free,
+                .alloc = time_alloc
+        }
 };
