@@ -34,11 +34,14 @@
  */
 static inline int32_t __read_png_int_raw(const char *buf)
 {
-        int32_t val;
+        int32_t b0, b1, b2, b3;
 
-        val = buf[0] << 24 | buf[1] << 16 | buf[2] << 8 | buf[3];
+        b0 = (unsigned char)buf[0];
+        b1 = (unsigned char)buf[1];
+        b2 = (unsigned char)buf[2];
+        b3 = (unsigned char)buf[3];
         
-        return val;
+        return b0 << 24 | b1 << 16 | b2 << 8 | b3;
 }
 
 /**
@@ -77,7 +80,12 @@ static inline bool read_png_uint(const char *buf, uint32_t *out)
 
 static uint16_t read_png_uint16(const char *buf)
 {
-        return buf[0] << 8 | buf[1];
+        uint16_t b0, b1;
+
+        b0 = (unsigned char)buf[0];
+        b1 = (unsigned char)buf[1];
+
+        return b0 << 8 | b1;
 }
 
 #endif /* PNG_INT_H */
