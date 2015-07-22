@@ -1,6 +1,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "chunk.h"
 #include "error.h"
@@ -15,6 +16,7 @@ extern struct chunk_template srgb_chunk_tmpl;
 extern struct chunk_template background_chunk_tmpl;
 extern struct chunk_template dimension_chunk_tmpl;
 extern struct chunk_template time_chunk_tmpl;
+extern struct chunk_template text_chunk_tmpl;
 extern struct chunk_template unknown_chunk_tmpl;
 
 static struct chunk_template* c_tmpl_mapping[] = {
@@ -26,6 +28,7 @@ static struct chunk_template* c_tmpl_mapping[] = {
         [CHUNK_BKGD] = &background_chunk_tmpl,
         [CHUNK_PHYS] = &dimension_chunk_tmpl,
         [CHUNK_TIME] = &time_chunk_tmpl,
+        [CHUNK_TEXT] = &text_chunk_tmpl,
         [CHUNK_UNKNOWN] = &unknown_chunk_tmpl
 };
 
@@ -1090,5 +1093,127 @@ struct chunk_template time_chunk_tmpl = {
                 .print_info = time_print_info,
                 .free = time_free,
                 .alloc = time_alloc
+        }
+};
+
+
+/* definitions for text chunk 11.3.4.3 */
+
+#define TEXT_KEYWORD_MAXLEN 80
+
+struct text_chunk {
+        /* base chunk */
+        struct chunk chunk;
+
+        /* null-terminated keyword string of length <= TEXT_KEYWORD_LEN */
+        char *keyword;
+        size_t key_len;
+
+        /*
+         * heap allocated text string of unbounded length. NOT null terminated
+         * (because the on disk representation isn't)
+         */
+        char *text;
+        size_t text_len;
+};
+
+static inline struct text_chunk *text_chunk(const struct chunk *chunk)
+{
+        return container_of(chunk, struct text_chunk, chunk);
+}
+
+static ssize_t text_read(struct chunk *chunk, const char *buf, size_t size)
+{
+        struct text_chunk *tc;
+        size_t chunk_len, key_len, text_len;
+        char *keyword, *text;
+        (void)size;
+
+        tc = text_chunk(chunk);
+        chunk_len = tc->chunk.length;
+
+        /*
+         * look for a key with length <= TEXT_KEYWORD_MAXLEN with a null byte
+         * at the end. make sure we don't go past the end of the chunk.
+         */
+        for (key_len = 0; *(buf + key_len); key_len++)
+                if (key_len > TEXT_KEYWORD_MAXLEN || key_len >= chunk_len)
+                        return -P_EINVAL;
+
+        /* count the null byte */
+        key_len++;
+
+        /* keyword is required to be 1 byte, plus the null */
+        if (key_len < 2)
+                return -P_E2SMALL;
+
+        /* allocate and copy the keyword */
+        keyword = malloc(sizeof *keyword * key_len);
+        if (!keyword)
+                return -P_ENOMEM;
+        memcpy(keyword, buf, key_len);
+
+        /*
+         * allocate and copy the text body (defined to be the rest of the
+         * chunk), if one is present.
+         */
+        text = NULL;
+        text_len = chunk_len - key_len;
+        if (text_len) {
+                text = malloc(sizeof *text * text_len);
+                if (!text)
+                        return -P_ENOMEM;
+
+                memcpy(text, buf + key_len, text_len);
+        }
+
+        tc->keyword = keyword;
+        tc->key_len = key_len;
+        tc->text = text;
+        tc->text_len = text_len;
+
+        return chunk_len;
+}
+
+static void text_print_info(FILE *stream, const struct chunk *chunk)
+{
+        struct text_chunk *tc;
+
+        tc = text_chunk(chunk);
+
+        fprintf(stream, "keyword (len %zu): %s\n", tc->key_len, tc->keyword);
+        fprintf(stream, "text (len %zu): ", tc->text_len);
+        fwrite(tc->text, sizeof *tc->text, sizeof *tc->text * tc->text_len,
+               stream);
+        fprintf(stream, "\n");
+}
+
+static void text_free(struct chunk *chunk)
+{
+        free(text_chunk(chunk));
+}
+
+static struct chunk *text_alloc(struct png_image *img, size_t len)
+{
+        struct text_chunk *tc;
+        (void)img;
+        (void)len;
+
+        tc = malloc(sizeof *tc);
+        if (!tc)
+                return NULL;
+
+        return &tc->chunk;
+}
+
+struct chunk_template text_chunk_tmpl = {
+        .ct_type = BYTES_TO_TYPE(116, 69, 88, 116),
+        .ct_name = "text",
+        .ct_type_idx = CHUNK_TEXT,
+        .ct_ops = {
+                .read = text_read,
+                .print_info = text_print_info,
+                .free = text_free,
+                .alloc = text_alloc
         }
 };
