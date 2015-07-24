@@ -320,17 +320,11 @@ static void header_free(struct chunk *chunk)
         free(header_chunk(chunk));
 }
 
-static struct chunk *header_alloc(struct png_image *img, size_t length)
+static struct chunk *header_alloc()
 {
         struct header_chunk *hc;
-        (void)img;
-        (void)length;
-
         hc = malloc(sizeof *hc);
-        if (!hc)
-                return NULL;
-
-        return &hc->chunk;
+        return hc ? &hc->chunk : NULL;
 }
 
 struct chunk_template header_chunk_tmpl = {
@@ -427,21 +421,11 @@ static void palette_free(struct chunk *chunk)
         free(palette_chunk(chunk));
 }
 
-static struct chunk *palette_alloc(struct png_image *img, size_t length)
+static struct chunk *palette_alloc()
 {
         struct palette_chunk *pc;
-        int entries;
-        (void)img;
-
-        printf("allocating palette\n");
-
-        entries = length/PALETE_ENTRY_SIZE;
         pc = malloc(sizeof *pc);
-        if (!pc)
-                return NULL;
-
-        printf("success\n");
-        return &pc->chunk;
+        return pc ? &pc->chunk : NULL;
 }
 
 struct chunk_template palette_chunk_tmpl = {
@@ -500,17 +484,11 @@ static void data_free(struct chunk *chunk)
         free(data_chunk(chunk));
 }
 
-static struct chunk *data_alloc(struct png_image *img, size_t length)
+static struct chunk *data_alloc()
 {
         struct data_chunk *dc;
-        (void)img;
-        (void)length;
-
         dc = malloc(sizeof *dc);
-        if (!dc)
-                return NULL;
-
-        return &dc->chunk;
+        return dc ? &dc->chunk : NULL;
 }
 
 struct chunk_template data_chunk_tmpl = {
@@ -601,17 +579,11 @@ static void srgb_free(struct chunk *chunk)
         free(srgb_chunk(chunk));
 }
 
-static struct chunk *srgb_alloc(struct png_image *img, size_t length)
+static struct chunk *srgb_alloc()
 {
         struct srgb_chunk *sc;
-        (void)img;
-        (void)length;
-
         sc = malloc(sizeof *sc);
-        if (!sc)
-                return NULL;
-
-        return &sc->chunk;
+        return sc ? &sc->chunk : NULL;
 }
 
 struct chunk_template srgb_chunk_tmpl = {
@@ -789,17 +761,11 @@ static void background_free(struct chunk *chunk)
         free(background_chunk(chunk));
 }
 
-static struct chunk *background_alloc(struct png_image *img, size_t length)
+static struct chunk *background_alloc()
 {
         struct background_chunk *bc;
-        (void)img;
-        (void)length;
-
         bc = malloc(sizeof *bc);
-        if (!bc)
-                return NULL;
-
-        return &bc->chunk;
+        return bc ? &bc->chunk : NULL;
 }
 
 struct chunk_template background_chunk_tmpl = {
@@ -891,17 +857,11 @@ static void dimension_free(struct chunk *chunk)
         free(dimension_chunk(chunk));
 }
 
-static struct chunk *dimension_alloc(struct png_image *img, size_t length)
+static struct chunk *dimension_alloc()
 {
         struct dimension_chunk *dc;
-        (void)img;
-        (void)length;
-
         dc = malloc(sizeof *dc);
-        if (!dc)
-                return NULL;
-
-        return &dc->chunk;
+        return dc ? &dc->chunk : NULL;
 }
 
 struct chunk_template dimension_chunk_tmpl = {
@@ -1071,17 +1031,11 @@ static void time_free(struct chunk *chunk)
         free(time_chunk(chunk));
 }
 
-static struct chunk *time_alloc(struct png_image *img, size_t length)
+static struct chunk *time_alloc()
 {
         struct time_chunk *tc;
-        (void)img;
-        (void)length;
-
         tc = malloc(sizeof *tc);
-        if (!tc)
-                return NULL;
-
-        return &tc->chunk;
+        return tc ? &tc->chunk : NULL;
 }
 
 struct chunk_template time_chunk_tmpl = {
@@ -1193,17 +1147,11 @@ static void text_free(struct chunk *chunk)
         free(text_chunk(chunk));
 }
 
-static struct chunk *text_alloc(struct png_image *img, size_t len)
+static struct chunk *text_alloc()
 {
         struct text_chunk *tc;
-        (void)img;
-        (void)len;
-
         tc = malloc(sizeof *tc);
-        if (!tc)
-                return NULL;
-
-        return &tc->chunk;
+        return tc ? &tc->chunk : 0;
 }
 
 struct chunk_template text_chunk_tmpl = {

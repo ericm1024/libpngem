@@ -51,14 +51,8 @@ struct chunk_ops {
         /* free the chunk. If null, free is called on the chunk itself */
         void (*free)(struct chunk *chunk);
         
-        /*
-         * alocate and initialize a chunk. takes the chunk to initialize,
-         * the parent image, the on-disk length field of the chunk, and
-         * somewhere to store the newly allocated chunk
-         * return true on success, false otherwise. If null, a generic
-         * chunk is allocated.
-         */
-        struct chunk *(*alloc)(struct png_image *img, size_t length);
+        /* alocate a chunk. if null, a generic chunk is allocated */
+        struct chunk *(*alloc)();
 };
 
 struct chunk *chunk_lookup(struct png_image *img, enum chunk_enum type);
