@@ -12,6 +12,7 @@ enum {
         P_ERANGE,
         P_EINVAL,
         P_ENOCHUNK,
+        P_EBADCSUM,
         __P_EMAX
 };
 

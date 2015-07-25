@@ -7,6 +7,7 @@
 #include "error.h"
 #include "int.h"
 #include "util.h"
+#include "zlib.h"
 
 extern struct chunk_template header_chunk_tmpl;
 extern struct chunk_template palette_chunk_tmpl;
@@ -462,10 +463,15 @@ static inline struct data_chunk *data_chunk(const struct chunk *chunk)
 static ssize_t data_read(struct chunk *chunk, const char *buf, size_t size)
 {
         struct data_chunk *dc;
+        ssize_t ret;
         (void)size;
         
         dc = data_chunk(chunk);
         dc->buf = buf;
+
+        ret = zlib_decompress((uint8_t*)buf, chunk->length, NULL);
+        if (ret < 0)
+                printf("zlib_decompress failed with %s\n", e2msg(ret));
         
         return dc->chunk.length;
 }

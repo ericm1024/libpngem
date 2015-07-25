@@ -8,5 +8,6 @@ const char *error_to_msg[__P_EMAX] = {
         [P_E2SMALL]   = "buffer too small",
         [P_ERANGE]    = "out of range",
         [P_EINVAL]    = "invalid value",
-        [P_ENOCHUNK]  = "missing chunk"
+        [P_ENOCHUNK]  = "missing chunk",
+        [P_EBADCSUM]  = "bad checksum"
 };
