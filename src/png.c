@@ -17,7 +17,7 @@
 #define array_size(a) (sizeof (a) / sizeof (a[0]))
 
 /* magic 8 bytes at the beginning of an image */
-static unsigned char png_magic[] = {137, 80, 78, 71, 13, 10, 26, 10};
+static uint8_t png_magic[] = {137, 80, 78, 71, 13, 10, 26, 10};
 
 
 /* print an error message and bail */
@@ -40,7 +40,7 @@ size_t get_fsize(int fd)
         return s.st_size;
 }
 
-size_t parse_magic(const char *buf, size_t buf_size)
+size_t parse_magic(const uint8_t *buf, size_t buf_size)
 {
         unsigned i;
         size_t magic_size;
@@ -50,7 +50,7 @@ size_t parse_magic(const char *buf, size_t buf_size)
                 return 0;
         
         for (i = 0; i < magic_size; i++)
-                if (png_magic[i] != (unsigned char)buf[i])
+                if (png_magic[i] != buf[i])
                         return 0;
 
         return magic_size;
@@ -59,7 +59,7 @@ size_t parse_magic(const char *buf, size_t buf_size)
 int main(int argc, char **argv)
 {
         const char *fname;
-        const char *fbuf;
+        const uint8_t *fbuf;
         int fd;
         size_t size;
         size_t offset;

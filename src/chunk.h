@@ -43,7 +43,7 @@ struct chunk_ops {
          * return nr bytes read on sucess, or 0 for error. If this method is
          * null, the chunk data field is expected to be empty.
          */
-        ssize_t (*read)(struct chunk *chunk, const char *buf, size_t size);
+        ssize_t (*read)(struct chunk *chunk, const uint8_t *buf, size_t size);
 
         /* print info about the chunk. If null, nothing will be printed */
         void (*print_info)(FILE *stream, const struct chunk *chunk);
@@ -91,6 +91,6 @@ struct png_image {
 };
 
 /* read a chunk from a buffer and return a chunk of the correct type */
-ssize_t parse_next_chunk(const char *buf, size_t size, struct png_image *img);
+ssize_t parse_next_chunk(const uint8_t *buf, size_t size, struct png_image *img);
 
 #endif /* PNG_CHUNK_H */

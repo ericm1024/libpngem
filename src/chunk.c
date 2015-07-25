@@ -95,7 +95,7 @@ static struct chunk *alloc_chunk(int32_t type, size_t length,
 }
 
 /* placeholder to crc */
-static uint32_t do_crc(const char *buf, size_t size)
+static uint32_t do_crc(const uint8_t *buf, size_t size)
 {
         (void)buf;
         (void)size;
@@ -104,7 +104,7 @@ static uint32_t do_crc(const char *buf, size_t size)
 }
 
 /* read the next chunk out of a buffer. return nr of bytes read */
-ssize_t parse_next_chunk(const char *buf, size_t size, struct png_image *img)
+ssize_t parse_next_chunk(const uint8_t *buf, size_t size, struct png_image *img)
 {
         uint32_t length, crc;
         int32_t type;
@@ -225,7 +225,7 @@ static inline struct header_chunk *header_chunk(const struct chunk *chunk)
         return container_of(chunk, struct header_chunk, chunk);
 }
 
-static ssize_t header_read(struct chunk *chunk, const char *buf, size_t size)
+static ssize_t header_read(struct chunk *chunk, const uint8_t *buf, size_t size)
 {
         struct header_chunk *hc;
         uint32_t width, height;
@@ -370,7 +370,7 @@ static inline struct palette_chunk *palette_chunk(const struct chunk *chunk)
         return container_of(chunk, struct palette_chunk, chunk);
 }
 
-static ssize_t palette_read(struct chunk *chunk, const char *buf, size_t size)
+static ssize_t palette_read(struct chunk *chunk, const uint8_t *buf, size_t size)
 {
         struct palette_chunk *pc;
         uint32_t length;
@@ -452,7 +452,7 @@ struct data_chunk {
          * pointer to chunk data. read only (must me later concatenated
          * to be beaningful)
          */
-        const char *buf;
+        const uint8_t *buf;
 };
 
 static inline struct data_chunk *data_chunk(const struct chunk *chunk)
@@ -460,7 +460,7 @@ static inline struct data_chunk *data_chunk(const struct chunk *chunk)
         return container_of(chunk, struct data_chunk, chunk);
 }
 
-static ssize_t data_read(struct chunk *chunk, const char *buf, size_t size)
+static ssize_t data_read(struct chunk *chunk, const uint8_t *buf, size_t size)
 {
         struct data_chunk *dc;
         ssize_t ret;
@@ -550,7 +550,7 @@ static inline struct srgb_chunk *srgb_chunk(const struct chunk *chunk)
         return container_of(chunk, struct srgb_chunk, chunk);
 }
 
-static ssize_t srgb_read(struct chunk *chunk, const char *buf, size_t size)
+static ssize_t srgb_read(struct chunk *chunk, const uint8_t *buf, size_t size)
 {
         struct srgb_chunk *sc;
         char ri;
@@ -627,7 +627,7 @@ background_chunk(const struct chunk *chunk)
         return container_of(chunk, struct background_chunk, chunk);
 }
 
-static ssize_t background_read(struct chunk *chunk, const char *buf, size_t size)
+static ssize_t background_read(struct chunk *chunk, const uint8_t *buf, size_t size)
 {
         struct background_chunk *bc;
         struct header_chunk *hc;
@@ -813,7 +813,7 @@ static inline struct dimension_chunk *dimension_chunk(const struct chunk *chunk)
         return container_of(chunk, struct dimension_chunk, chunk);
 }
 
-static ssize_t dimension_read(struct chunk *chunk, const char *buf, size_t size)
+static ssize_t dimension_read(struct chunk *chunk, const uint8_t *buf, size_t size)
 {
         struct dimension_chunk *dc;
         uint32_t ppu_x, ppu_y;
@@ -946,7 +946,7 @@ static inline struct time_chunk *time_chunk(const struct chunk *chunk)
         return container_of(chunk, struct time_chunk, chunk);
 }
 
-static ssize_t time_read(struct chunk *chunk, const char *buf, size_t size)
+static ssize_t time_read(struct chunk *chunk, const uint8_t *buf, size_t size)
 {
         struct time_chunk *tc;
         uint16_t year;
@@ -1082,7 +1082,7 @@ static inline struct text_chunk *text_chunk(const struct chunk *chunk)
         return container_of(chunk, struct text_chunk, chunk);
 }
 
-static ssize_t text_read(struct chunk *chunk, const char *buf, size_t size)
+static ssize_t text_read(struct chunk *chunk, const uint8_t *buf, size_t size)
 {
         struct text_chunk *tc;
         size_t chunk_len, key_len, text_len;

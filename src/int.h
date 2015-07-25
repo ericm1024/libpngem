@@ -32,14 +32,14 @@
  *               sizeof(int32_t) i.e. 4
  * \return the integer read
  */
-static inline int32_t __read_png_int_raw(const char *buf)
+static inline int32_t __read_png_int_raw(const uint8_t *buf)
 {
         int32_t b0, b1, b2, b3;
 
-        b0 = (unsigned char)buf[0];
-        b1 = (unsigned char)buf[1];
-        b2 = (unsigned char)buf[2];
-        b3 = (unsigned char)buf[3];
+        b0 = buf[0];
+        b1 = buf[1];
+        b2 = buf[2];
+        b3 = buf[3];
         
         return b0 << 24 | b1 << 16 | b2 << 8 | b3;
 }
@@ -51,7 +51,7 @@ static inline int32_t __read_png_int_raw(const char *buf)
  * \param out   The integer is written here, regardless of its validity.
  * \returns True if the value read was vaid, otherwise false
  */ 
-static inline bool read_png_int(const char *buf, int32_t *out)
+static inline bool read_png_int(const uint8_t *buf, int32_t *out)
 {
         int32_t val;
 
@@ -68,7 +68,7 @@ static inline bool read_png_int(const char *buf, int32_t *out)
  * \param out   The integer is written here, regardless of its validity.
  * \returns True if the value read was vaid, otherwise false
  */ 
-static inline bool read_png_uint(const char *buf, uint32_t *out)
+static inline bool read_png_uint(const uint8_t *buf, uint32_t *out)
 {
         uint32_t val;
         
@@ -78,12 +78,12 @@ static inline bool read_png_uint(const char *buf, uint32_t *out)
         return PNG_UINT_MIN <= val && val <= PNG_UINT_MAX;
 }
 
-static uint16_t read_png_uint16(const char *buf)
+static uint16_t read_png_uint16(const uint8_t *buf)
 {
         uint16_t b0, b1;
 
-        b0 = (unsigned char)buf[0];
-        b1 = (unsigned char)buf[1];
+        b0 = buf[0];
+        b1 = buf[1];
 
         return b0 << 8 | b1;
 }
