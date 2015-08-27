@@ -15,3 +15,6 @@ error.o: error.c error.h
 
 zlib.o: zlib.c zlib.h
 	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -f *.o png
