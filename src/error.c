@@ -9,5 +9,6 @@ const char *error_to_msg[__P_EMAX] = {
         [P_ERANGE]    = "out of range",
         [P_EINVAL]    = "invalid value",
         [P_ENOCHUNK]  = "missing chunk",
-        [P_EBADCSUM]  = "bad checksum"
+        [P_EBADCSUM]  = "bad checksum",
+        [P_ENOTSUP]   = "not supported"
 };

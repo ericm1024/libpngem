@@ -13,6 +13,7 @@ enum {
         P_EINVAL,
         P_ENOCHUNK,
         P_EBADCSUM,
+        P_ENOTSUP,
         __P_EMAX
 };
 

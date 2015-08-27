@@ -464,12 +464,17 @@ static ssize_t data_read(struct chunk *chunk, const uint8_t *buf, size_t size)
 {
         struct data_chunk *dc;
         ssize_t ret;
+        struct zlib_stream stream;
         (void)size;
         
         dc = data_chunk(chunk);
         dc->buf = buf;
 
-        ret = zlib_decompress((uint8_t*)buf, chunk->length, NULL);
+        memset(&stream, 0, sizeof stream);
+        stream.z_src = buf;
+        stream.z_src_end = chunk->length;
+
+        ret = zlib_decompress(&stream);
         if (ret < 0)
                 printf("zlib_decompress failed with %s\n", e2msg(ret));
         
