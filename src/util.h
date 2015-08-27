@@ -13,7 +13,8 @@
 
 #define BUG()                                                           \
         do {                                                            \
-                fprintf(stderr, "BUG! %s:%d %s", __FILE__, __LINE__, __func__); \
+                fprintf(stderr, "BUG! %s:%d %s\n",                      \
+                        __FILE__, __LINE__, __func__);                  \
                 exit(1);                                                \
         } while (0);                                                    \
 
